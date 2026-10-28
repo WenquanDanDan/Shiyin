@@ -8,6 +8,9 @@ Windows 常驻托盘、开机自启、按住热键说话就把文字打到光标
 
 支持 Windows 10/11 x64 · Python 3.14 · SenseVoice 中英日韩粤识别。
 
+> **许可范围**：本仓库**源代码**采用 MIT；模型权重（SenseVoice）与第三方依赖
+> （如 PyAV/FFmpeg）分别适用其自身许可证，详见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
+
 ---
 
 ## 特性
@@ -53,6 +56,8 @@ powershell -ExecutionPolicy Bypass -File scripts\setup.ps1
 脚本幂等，可重复运行；已经完成的步骤会自动跳过。
 
 部署完成后可以直接双击 **`run.pyw`** 启动（无控制台窗口）。
+
+> 模型权重遵循上游 **FunASR Model License 1.1**；本项目代码为 MIT，两者的许可范围不同，详见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
 
 ### 手动安装
 
@@ -359,10 +364,11 @@ vtw/
 ├─ run.pyw                    无控制台启动入口（自启与日常使用）
 ├─ 启动(调试).bat              带控制台的调试启动
 ├─ config.example.json        配置示例（复制为 config.json 后修改）
-├─ requirements.txt           运行期依赖（全部官方预编译 wheel）
+├─ requirements.txt           运行期依赖（官方预编译 wheel；许可见 THIRD_PARTY_NOTICES.md）
 ├─ LICENSE                    MIT
 ├─ README.md
 ├─ CONTRIBUTING.md
+├─ THIRD_PARTY_NOTICES.md      第三方依赖/模型许可清单
 ├─ src/vtw/
 │  ├─ __main__.py             命令行入口
 │  ├─ app.py                  应用装配、线程模型、听写/会议/文件转写流程
@@ -403,19 +409,25 @@ vtw/
 | 组件 | 用途 | 许可证 |
 |---|---|---|
 | [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx) | 识别/VAD 推理 | Apache-2.0 |
-| [PyAV](https://github.com/PyAV-Org/PyAV)（含 FFmpeg） | 音频文件解码 | BSD-3-Clause / LGPL-2.1+ |
+| [PyAV](https://github.com/PyAV-Org/PyAV)（含 FFmpeg） | 音频文件解码 | PyAV 源码 BSD-3-Clause；**PyPI 的二进制 wheel 内含 FFmpeg 及 x264/x265，按 GPLv2+ 或 LGPLv2.1+（含商业例外）分发**。本项目 MIT 不覆盖该 wheel，详见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) |
 | [sounddevice](https://github.com/spatialaudio/python-sounddevice) | 麦克风采集 | MIT |
 | [SoundCard](https://github.com/bastibe/SoundCard) | WASAPI 环回 | BSD-3-Clause |
-| [PyAudioWPatch](https://github.com/s0d3s/PyAudioWPatch) | 环回备用后端 | MIT |
-| [soxr](https://github.com/dofuuz/python-soxr) | 重采样 | LGPL-2.1 |
+| [PyAudioWPatch](https://github.com/s0d3s/PyAudioWPatch) | 环回备用后端 | Apache-2.0 |
+| [soxr](https://github.com/dofuuz/python-soxr) | 重采样 | LGPL-2.1-or-later |
 | [keyboard](https://github.com/boppreh/keyboard) | 热键兜底 | MIT |
 | [pystray](https://github.com/moses-palmer/pystray) | 系统托盘 | LGPL-3.0 |
 | [Pillow](https://python-pillow.org/) | 托盘图标绘制 | MIT-CMU |
 | [numpy](https://numpy.org/) | 数值计算 | BSD-3-Clause |
 
-**模型权重不随本仓库分发**：`scripts/download_models.py` 从 sherpa-onnx 官方
-GitHub release 下载 SenseVoice int8 与 silero VAD，版权与许可归上游所有，
-使用时请遵循其各自许可证。
+> 依赖由 pip 从 PyPI 安装，本仓库**不打包**任何第三方二进制。若你计划发布 EXE、安装器或含 `.venv` 的压缩包，请先阅读 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) 中 GPL/LGPL 与模型许可的说明。
+
+**模型权重不随本仓库分发**：`scripts/download_models.py` 从 sherpa-onnx 官方 release 下载 SenseVoice int8 与 silero VAD。
+
+- **SenseVoice 代码**：[MIT](https://github.com/FunAudioLLM/SenseVoice/blob/main/LICENSE)（Copyright 2025 FunASR）。
+- **SenseVoiceSmall / 本仓库下载的 SenseVoice int8 权重**：**[FunASR Model License 1.1](https://github.com/modelscope/FunASR/blob/main/MODEL_LICENSE)**。该许可要求注明出处、保留模型名称；条款中“仅供参考/学习”的表述在商业使用时需自行评估（建议做法律审查）。
+- **Silero VAD**：[MIT](https://github.com/snakers4/silero-vad/blob/master/LICENSE)（Copyright 2020-present Silero Team）。
+
+本项目使用 **SenseVoice**（FunAudioLLM / FunASR，阿里巴巴）与 **Silero VAD**（Silero Team）；名称与版权归各自权利人。使用模型即表示遵守其上游许可。
 
 ---
 
@@ -428,6 +440,8 @@ GitHub release 下载 SenseVoice int8 与 silero VAD，版权与许可归上游�
 ## 许可证
 
 [MIT](LICENSE) © 2026 WenquanDanDan
+
+该 MIT 许可仅覆盖本仓库中的**源代码**；**模型权重与第三方依赖不适用 MIT**，分别遵循其自身许可证，详见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
 
 ---
 

@@ -19,6 +19,8 @@ pyaudiowpatch==0.2.12.8
 soxr==1.1.0
 
 # 音频文件转写：MP3/M4A/FLAC/OGG 等格式解码（WAV 不需要；wheel 自带 FFmpeg）
+# 注意：PyPI 的 av wheel 内含 FFmpeg/x264/x265（GPL/LGPL），本项目只以源码引用；
+# 打包二进制分发前请阅读 THIRD_PARTY_NOTICES.md
 av==19.0.2
 
 # 全局热键（支持按键抑制，实现"按住说话"）

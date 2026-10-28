@@ -40,6 +40,14 @@ from vtw import paths  # noqa: E402
 
 GH = "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models"
 
+MODEL_LICENSE_NOTICE = """模型许可提示：
+  · SenseVoice 代码：MIT
+  · SenseVoiceSmall / 本项目下载的 int8 权重：FunASR Model License 1.1
+    https://github.com/modelscope/FunASR/blob/main/MODEL_LICENSE
+    （需注明出处并保留模型名称；商业使用请自行评估）
+  · Silero VAD：MIT
+模型权重不随本项目分发；下载/使用即表示遵守上游许可。"""
+
 # ---------------------------------------------------------------------------
 # 模型版本选择（由 scripts/compare_models.py 实测决定，勿随意更改）
 #
@@ -363,6 +371,8 @@ def main() -> int:
     print("=" * 62)
     print("vtw 模型准备")
     print("=" * 62)
+    print(MODEL_LICENSE_NOTICE)
+    print("-" * 62)
 
     ok_sv = ensure_sense_voice(
         force=args.force, check_only=args.check, redownload=args.redownload

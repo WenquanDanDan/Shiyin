@@ -53,7 +53,8 @@ powershell -ExecutionPolicy Bypass -File scripts\setup.ps1 -SkipAutostart
 - `.ps1` 必须保存为 **UTF-8 with BOM + CRLF**，否则 Windows PowerShell 5.1
   会按 ANSI(GBK) 解码，中文注释会导致语法错误。
 - 新增第三方依赖时：更新 `requirements.txt`、说明用途，并确认许可证与
-  「官方预编译 wheel、无需编译器」的约束一致。
+  「官方预编译 wheel、无需编译器」的约束一致；同时更新
+  [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)（GPL/LGPL 依赖尤其要注明分发义务）。
 - 修改音频/识别逻辑时，请在 PR 里附上测试方式与前后对比（RTF、识别文本）。
 
 ## 提交 PR
