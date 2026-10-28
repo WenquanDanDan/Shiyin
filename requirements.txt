@@ -1,0 +1,29 @@
+# 本地语音转文字工具 — 运行期依赖
+# 全部为官方预编译 wheel（含 abi3），无需编译器
+# 版本均已在本机实测可解析安装
+
+# 语音识别引擎（内含 onnxruntime）
+sherpa-onnx==1.13.8
+
+# 数值计算
+numpy==2.5.3
+
+# 麦克风采集（自带 PortAudio）
+sounddevice==0.5.6
+
+# 系统声音环回采集（WASAPI loopback）
+SoundCard==0.4.6
+
+# 环回采集备用后端 + 重采样（soundcard 在本机失效时启用）
+pyaudiowpatch==0.2.12.8
+soxr==1.1.0
+
+# 音频文件转写：MP3/M4A/FLAC/OGG 等格式解码（WAV 不需要；wheel 自带 FFmpeg）
+av==19.0.2
+
+# 全局热键（支持按键抑制，实现"按住说话"）
+keyboard==0.13.5
+
+# 系统托盘
+pystray==0.19.5
+pillow==12.3.0

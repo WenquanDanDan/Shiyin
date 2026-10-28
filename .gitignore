@@ -1,0 +1,38 @@
+# Python 解释器与构建产物
+__pycache__/
+*.py[cod]
+*.pyo
+*$py.class
+.venv/
+venv/
+env/
+build/
+dist/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# 模型权重（体积大，由 scripts/download_models.py 下载）
+models/
+
+# 运行期数据：文字稿、历史、日志、会议录音
+output/
+logs/
+reports/
+*.log
+
+# 本机配置（含设备名/热键，逐机不同）；示例见 config.example.json
+config.json
+config.json.bad
+
+# 临时文件与系统垃圾
+tmp/
+temp/
+*.tmp
+*.bak
+.DS_Store
+Thumbs.db
+desktop.ini
+*.swp
+*~
