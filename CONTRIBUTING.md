@@ -1,12 +1,15 @@
 # 贡献指南
 
-感谢你愿意改进 vtw。这个项目只支持 **Windows**，目标是保持「完全离线、零遥测、
-开箱即用」，提交前请先确认改动不破坏这一点。
+感谢你愿意改进**拾音/Shiyin**。这个项目只支持 **Windows**，目标是保持「完全离线、零遥测、开箱即用」，提交前请先确认改动不破坏这一点。
+这本身就是一个vibecoding项目，欢迎使用各路AI狠狠加以改进。
+
+## 注
+由于VC时的文件夹名是vtw，这里面可能会偶尔出现这个名字，请见谅，当然帮忙改掉更是欢迎。
 
 ## 开发环境
 
 - Windows 10/11 x64
-- Python **3.14 x64**（安装时勾选 `Add Python to PATH`）
+- Python **3.14 x64**
 - Git
 
 ```powershell
@@ -42,7 +45,7 @@ powershell -ExecutionPolicy Bypass -File scripts\setup.ps1 -SkipAutostart
 ```
 
 `scripts\test_settings_gui.py` 会临时修改本机热键与 `config.json`，结束时会还原；
-请勿在正在使用 vtw 的情况下运行它。
+请勿在正在使用的情况下运行它。
 
 ## 代码约定
 
@@ -61,8 +64,7 @@ powershell -ExecutionPolicy Bypass -File scripts\setup.ps1 -SkipAutostart
 
 1. 从 `main` 切分支：`git checkout -b fix/xxx`
 2. 保证 `python -m unittest discover -s tests` 通过（模型缺失时的 skip 属正常）。
-3. 说明改动动机、影响范围、验证结果；涉及界面的请附截图/尺寸。
-4. 提交信息用中文或英文均可，但请写清楚「为什么」。
+3. 提交信息用中文或英文均可。
 
 ## 许可证
 
