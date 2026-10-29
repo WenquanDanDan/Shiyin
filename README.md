@@ -1,4 +1,4 @@
-# vtw —— 完全本地的语音转文字工具
+# 拾音/Shiyin —— 完全本地的语音转文字工具
 
 > A fully offline, Windows-only speech-to-text tray app powered by SenseVoice.
 > **No audio ever leaves your machine.**
@@ -7,6 +7,7 @@ Windows 常驻托盘、开机自启、按住热键说话就把文字打到光标
 **不上传任何音频，运行期零网络请求。**
 
 支持 Windows 10/11 x64 · Python 3.14 · SenseVoice 中英日韩粤识别。
+本项目通过DeepSeekV4.1-flash-1017和Deepseek Harness-NEXT 0.2.1-rc.3开发。
 
 > **许可范围**：本仓库**源代码**采用 MIT；模型权重（SenseVoice）与第三方依赖
 > （如 PyAV/FFmpeg）分别适用其自身许可证，详见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
@@ -35,7 +36,7 @@ Windows 常驻托盘、开机自启、按住热键说话就把文字打到光标
 ## 系统要求
 
 - **Windows 10/11 x64**（依赖 WASAPI、Win32 键盘钩子、注册表自启，不能跨平台）
-- **Python 3.14 x64**（安装时勾选 `Add Python to PATH`；tkinter 随官方安装包提供）
+- **Python 3.14 x64**
 - 约 **600 MB** 磁盘：依赖约 200 MB，模型约 390 MB
 - 仅安装阶段需要联网；运行期完全离线
 
