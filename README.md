@@ -7,6 +7,7 @@ Windows 常驻托盘、开机自启、按住热键说话就把文字打到光标
 **不上传任何音频，运行期零网络请求。**
 
 支持 Windows 10/11 x64 · Python 3.14 · SenseVoice 中英日韩粤识别。
+
 本项目通过DeepSeekV4.1-flash-1017和Deepseek Harness-NEXT 0.2.1-rc.3开发。
 
 > **许可范围**：本仓库**源代码**采用 MIT；模型权重（SenseVoice）与第三方依赖
