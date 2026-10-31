@@ -47,6 +47,10 @@ DEFAULTS: dict[str, Any] = {
     "output_dir": "output",
     "history_enabled": True,
     "save_meeting_audio": False,
+    # ---- 启动 ----
+    # 以管理员身份运行：全局键盘钩子在非提权进程里可能收不到按键
+    # （UIPI 限制 + 部分安全软件拦截），默认开启
+    "run_as_admin": True,
     # ---- 界面 ----
     "overlay_enabled": True,
     "overlay_position": "bottom-center",

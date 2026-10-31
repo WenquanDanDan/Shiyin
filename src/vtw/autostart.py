@@ -27,9 +27,24 @@ VALUE_NAME = "VtwVoiceToText"
 ENTRY_SCRIPT = "run.pyw"
 
 
+def venv_pythonw() -> Path:
+    """项目自带环境里的 ``pythonw.exe``（标准位置）。"""
+    return paths.PROJECT_ROOT / ".venv" / "Scripts" / "pythonw.exe"
+
+
 def pythonw_path() -> Path:
-    """返回 pythonw.exe 路径（与解释器同一目录）。"""
-    return Path(sys.executable).with_name("pythonw.exe")
+    """返回应写进自启项的 ``pythonw.exe``。
+
+    **优先项目 ``.venv``**。不能用 ``sys.executable`` 直接推：Python 3.14 的
+    venv 是个"重定向启动器"，拿到的 ``sys.executable`` 有时是基座解释器
+    （系统 Python）。若把系统 Python 写进自启项，登录后它会缺 numpy/sounddevice，
+    表现为"开机自启了但按快捷键没反应"。
+    """
+    candidate = venv_pythonw()
+    if candidate.is_file():
+        return candidate
+    sibling = Path(sys.executable).with_name("pythonw.exe")
+    return sibling if sibling.is_file() else candidate
 
 
 def entry_path() -> Path:

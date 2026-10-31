@@ -109,6 +109,51 @@ _SOLO_MODIFIER_KEYS: dict[str, int] = {
     "left win": VK_LWIN, "right win": VK_RWIN,
 }
 
+#: 一切"本次按键本身就是修饰键"的 vk（含左右键）
+_MODIFIER_VKS: frozenset[int] = frozenset(
+    {VK_CONTROL, VK_LCONTROL, VK_RCONTROL,
+     VK_MENU, VK_LMENU, VK_RMENU,
+     VK_SHIFT, VK_LSHIFT, VK_RSHIFT,
+     VK_LWIN, VK_RWIN}
+)
+
+#: 泛化 vk → 低级钩子实际会报上来的左右键 vk。
+#:
+#: **这是"单独按 Ctrl 做热键没反应"的根因**：``WH_KEYBOARD_LL`` 收到的
+#: ``vkCode`` 是左/右键的具体码（0xA2 / 0xA3），永远不会是泛化的
+#: ``VK_CONTROL``(0x11)。只按 0x11 比较，真实按键永远匹配不上。
+_MAIN_KEY_VARIANTS: dict[int, tuple[int, ...]] = {
+    VK_CONTROL: (VK_LCONTROL, VK_RCONTROL, VK_CONTROL),
+    VK_MENU: (VK_LMENU, VK_RMENU, VK_MENU),
+    VK_SHIFT: (VK_LSHIFT, VK_RSHIFT, VK_SHIFT),
+    VK_LWIN: (VK_LWIN,),
+    VK_RWIN: (VK_RWIN,),
+}
+
+#: 单修饰键热键的"按住确认时间"（秒）。
+#:
+#: 单修饰键**不能抑制**（否则 Ctrl+C / Alt+Tab 这类快捷键全废），不抑制就意味
+#: 每按一次 Ctrl 都会触发一次回调 —— 普通快捷键会被当成听写。加一个短延时后：
+#: 按住超过该时长才算"要说话"，Ctrl+C 这种快速点按不触发。
+SOLO_MODIFIER_HOLD_DELAY = 0.3
+
+
+def _is_modifier_vk(vk: int) -> bool:
+    return vk in _MODIFIER_VKS
+
+
+def _main_key_variants(main_vk: int) -> tuple[int, ...]:
+    return _MAIN_KEY_VARIANTS.get(main_vk, (main_vk,))
+
+
+def is_solo_modifier_combo(combo: str) -> bool:
+    """这个热键是不是"单独一个修饰键"（如 ``ctrl``、``left alt``）。"""
+    parsed = parse_combo(combo)
+    if parsed is None:
+        return False
+    modifiers, main_vk = parsed
+    return not modifiers and _is_modifier_vk(main_vk)
+
 
 def parse_combo(combo: str) -> tuple[list[str], int] | None:
     """把 ``ctrl+alt+space`` 解析成 ``(["ctrl", "alt"], 0x20)``。
@@ -189,7 +234,11 @@ class HotkeySpec:
     combo: str
     modifiers: list[str] = field(default_factory=list)
     main_vk: int = 0
+    #: 真正参与匹配的 vk 集合（单修饰键会有左右键两个变体）
+    main_vks: tuple[int, ...] = ()
     suppress: bool = True
+    #: >0 时按下不立刻触发，按住超过该时长才触发（单修饰键用）
+    hold_delay: float = 0.0
 
 
 def _is_down(vk: int) -> bool:
@@ -209,9 +258,21 @@ class NativeKeyboardHook:
         self._specs: list[HotkeySpec] = []
         self._callbacks: dict[str, tuple[Callable[[], None], Callable[[], None] | None]] = {}
         self._armed: set[str] = set()  # 已经触发过按下、尚未松开的热键
+        self._fired: set[str] = set()  # 按下回调已经真正发出（区分"按住确认"未到）
+        self._pending: dict[str, threading.Timer] = {}  # 等待"按住确认"的定时器
         self._proc = HOOKPROC(self._hook_proc)  # 必须保持引用，否则会被 GC 回收
         self._install_error: str = ""
         self._paused = False
+        #: 调试用原始监听（见 set_raw_listener），默认关闭
+        self._raw_listener: Callable[[int], None] | None = None
+
+    def set_raw_listener(self, listener: Callable[[int], None] | None) -> None:
+        """调试用：每一次按键按下都回调一次 ``listener(vk)``。
+
+        只给排障脚本使用 —— 回调在钩子线程上同步执行，必须极快返回。
+        正常运行时保持 ``None``，不产生任何额外开销。
+        """
+        self._raw_listener = listener
 
     # -- 暂停 -------------------------------------------------------------
     @property
@@ -229,6 +290,11 @@ class NativeKeyboardHook:
                 return
             self._paused = paused
             self._armed.clear()  # 暂停前后丢掉半按状态，避免松键回调错配
+            self._fired.clear()
+            pending = list(self._pending.values())
+            self._pending.clear()
+        for timer in pending:
+            timer.cancel()
         log.info("全局热键已%s", "暂停（设置界面捕获中）" if paused else "恢复")
 
     # -- 安装 / 卸载 ------------------------------------------------------
@@ -300,20 +366,41 @@ class NativeKeyboardHook:
             log.error("无法解析热键：%r", combo)
             return False
         modifiers, main_vk = parsed
+        main_vks = _main_key_variants(main_vk)
+        solo = not modifiers and _is_modifier_vk(main_vk)
+        hold_delay = 0.0
+        if solo:
+            # 单修饰键：抑制会让 Ctrl+C / Alt+Tab 这类快捷键全废，所以不抑制；
+            # 用"按住确认时间"挡住普通快捷键的快速点按。
+            if suppress:
+                log.info(
+                    "热键 %s 是单个修饰键：不抑制按键（否则 Ctrl/Alt 快捷键会全部失效）", combo
+                )
+            suppress = False
+            hold_delay = SOLO_MODIFIER_HOLD_DELAY
 
         with self._lock:
             # 同一组合重复注册时替换旧回调
             self._specs = [s for s in self._specs if s.combo != combo]
             self._specs.append(
-                HotkeySpec(combo=combo, modifiers=modifiers, main_vk=main_vk, suppress=suppress)
+                HotkeySpec(
+                    combo=combo,
+                    modifiers=modifiers,
+                    main_vk=main_vk,
+                    main_vks=main_vks,
+                    suppress=suppress,
+                    hold_delay=hold_delay,
+                )
             )
             self._callbacks[combo] = (on_press, on_release)
         log.info(
-            "注册热键 %s（修饰键=%s 主键=%s 抑制=%s）",
+            "注册热键 %s（修饰键=%s 主键=%s 匹配=%s 抑制=%s%s）",
             combo,
             modifiers or "无",
             _vk_display(main_vk),
+            "/".join(_vk_display(v) for v in main_vks),
             suppress,
+            f" 按住{hold_delay:.1f}s生效" if hold_delay else "",
         )
         return True
 
@@ -322,6 +409,11 @@ class NativeKeyboardHook:
             self._specs.clear()
             self._callbacks.clear()
             self._armed.clear()
+            self._fired.clear()
+            pending = list(self._pending.values())
+            self._pending.clear()
+        for timer in pending:
+            timer.cancel()
 
     # -- 钩子过程 ---------------------------------------------------------
     def _hook_proc(self, code: int, wparam: int, lparam: int) -> int:
@@ -333,6 +425,11 @@ class NativeKeyboardHook:
             vk = int(info.vkCode)
 
             if wparam in (WM_KEYDOWN, WM_SYSKEYDOWN):
+                if self._raw_listener is not None:
+                    try:
+                        self._raw_listener(vk)
+                    except Exception:  # noqa: BLE001 - 调试回调不能影响钩子
+                        log.exception("原始按键监听回调异常")
                 swallow = self._handle_down(vk)
             elif wparam in (WM_KEYUP, WM_SYSKEYUP):
                 swallow = self._handle_up(vk)
@@ -356,17 +453,33 @@ class NativeKeyboardHook:
             armed = set(self._armed)
 
         for spec in specs:
-            if vk != spec.main_vk:
+            if vk not in spec.main_vks:
                 continue
             if not all(any(_is_down(m) for m in _MODIFIER_GROUPS[name]) for name in spec.modifiers):
                 continue
 
-            if spec.combo not in armed:
-                self._armed.add(spec.combo)
-                on_press = callbacks.get(spec.combo, (None, None))[0]
-                if on_press:
+            if spec.combo in armed:
+                # 长按产生的重复 keydown：已经触发过就只吞掉，不再重复触发按下回调
+                return spec.suppress
+
+            # 钩子回调由系统在同一个线程上串行调用，_armed 无需额外加锁
+            self._armed.add(spec.combo)
+            on_press = callbacks.get(spec.combo, (None, None))[0]
+            if on_press is not None:
+                if spec.hold_delay > 0:
+                    # 单修饰键：按住够久才算"要说话"，避免把 Ctrl+C 当成听写
+                    log.debug(
+                        "热键 %s 按下（vk=0x%02X），等待按住 %.2fs 确认",
+                        spec.combo,
+                        vk,
+                        spec.hold_delay,
+                    )
+                    self._schedule_press(spec.combo, on_press, spec.hold_delay)
+                else:
+                    log.info("热键按下：%s（vk=0x%02X）", spec.combo, vk)
+                    with self._lock:
+                        self._fired.add(spec.combo)
                     self._invoke(on_press)
-            # 长按产生的重复 keydown：已经触发过就只吞掉，不再重复触发按下回调
             return spec.suppress
 
         return False
@@ -381,18 +494,60 @@ class NativeKeyboardHook:
             armed = set(self._armed)
 
         for spec in specs:
-            if vk != spec.main_vk:
+            if vk not in spec.main_vks:
                 continue
             # 不是我们触发过的（例如用户单独按了主键），放行且不回调
             if spec.combo not in armed:
                 continue
             self._armed.discard(spec.combo)
-            on_release = callbacks.get(spec.combo, (None, None))[1]
-            if on_release:
-                self._invoke(on_release)
+            self._cancel_pending(spec.combo)
+            with self._lock:
+                fired = spec.combo in self._fired
+                self._fired.discard(spec.combo)
+            # "按住确认"还没到就松开了：当作普通快捷键，不回调
+            if fired:
+                log.info("热键松开：%s（vk=0x%02X）", spec.combo, vk)
+                on_release = callbacks.get(spec.combo, (None, None))[1]
+                if on_release:
+                    self._invoke(on_release)
+            else:
+                log.debug(
+                    "热键 %s 松开（vk=0x%02X）：按住时间不足 %.2fs，不触发",
+                    spec.combo,
+                    vk,
+                    spec.hold_delay,
+                )
             return spec.suppress
 
         return False
+
+    # -- 按住确认（单修饰键）----------------------------------------------
+    def _schedule_press(
+        self, combo: str, on_press: Callable[[], None], delay: float
+    ) -> None:
+        timer = threading.Timer(delay, self._fire_delayed, args=(combo, on_press))
+        timer.daemon = True
+        with self._lock:
+            old = self._pending.get(combo)
+            self._pending[combo] = timer
+        if old is not None:
+            old.cancel()
+        timer.start()
+
+    def _fire_delayed(self, combo: str, on_press: Callable[[], None]) -> None:
+        with self._lock:
+            self._pending.pop(combo, None)
+            if self._paused or combo not in self._armed:
+                return
+            self._fired.add(combo)
+        log.info("热键按下：%s（按住确认已到）", combo)
+        self._invoke(on_press)
+
+    def _cancel_pending(self, combo: str) -> None:
+        with self._lock:
+            timer = self._pending.pop(combo, None)
+        if timer is not None:
+            timer.cancel()
 
     @staticmethod
     def _invoke(callback: Callable[[], None]) -> None:

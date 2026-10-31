@@ -50,6 +50,7 @@ from .audio_source import (
 from .config import Config
 from .hotkey import HotkeyManager
 from .meeting import MeetingSession
+from .nativehook import SOLO_MODIFIER_HOLD_DELAY, is_solo_modifier_combo
 from .overlay import Overlay
 from .textutil import is_meaningful
 from .vad import trim_silence
@@ -225,6 +226,20 @@ class App:
                 "请在「设置」里改成别的组合（例如 ctrl+alt+d）。",
                 error=True,
             )
+        elif is_solo_modifier_combo(hold_combo):
+            # 单修饰键不抑制（否则 Ctrl+C / Alt+Tab 全废），改用"按住确认"
+            log.info(
+                "听写热键「%s」是单个修饰键：不抑制按键，需按住约 %.1f 秒才触发",
+                hold_combo,
+                SOLO_MODIFIER_HOLD_DELAY,
+            )
+        elif "+" not in hold_combo:
+            # 单键热键要抑制才能用（否则原按键会同时生效），但抑制是全局的：
+            # 该键在所有程序里都会失效。记一条日志，出问题时能对上号。
+            log.warning(
+                "听写热键「%s」是单个按键，已被全局抑制（在其它程序里也会失效）",
+                hold_combo,
+            )
 
         meeting_combo = str(self.config["hotkey_meeting_toggle"])
         meeting_binding = self.hotkeys.register_toggle(meeting_combo, self.toggle_meeting)
@@ -308,6 +323,15 @@ class App:
             log.error("麦克风启动失败：%s", exc)
             self._notify(str(exc), error=True)
             self._ui_queue.put(("message", "麦克风不可用", True))
+            self._set_state("idle")
+            return
+        except Exception as exc:  # noqa: BLE001
+            # 例如依赖缺失（ModuleNotFoundError）、PortAudio 初始化崩溃。
+            # 只捕获 AudioSourceError 的话，其余异常会被工作线程静默吞掉：
+            # 用户按了热键既没录音、也没任何提示，看起来就是"热键坏了"。
+            log.exception("启动录音失败")
+            self._notify(f"无法开始录音：{exc}", error=True)
+            self._set_state("idle")
             return
 
         if self.meeting is not None and self.meeting.running and not self._warned_self_capture:
@@ -328,7 +352,11 @@ class App:
         source, self._source = self._source, None
         self._dictating = False
 
-        audio = source.stop() if source is not None else None
+        try:
+            audio = source.stop() if source is not None else None
+        except Exception:  # noqa: BLE001 - 停止失败也要回到 idle，不能卡在录音态
+            log.exception("停止录音失败，丢弃本次音频")
+            audio = None
         if audio is None or audio.size == 0:
             self._set_state("idle")
             self._ui_queue.put(("overlay_hide",))

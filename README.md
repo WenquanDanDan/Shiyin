@@ -59,6 +59,13 @@ powershell -ExecutionPolicy Bypass -File scripts\setup.ps1
 
 部署完成后可以直接双击 **`run.pyw`** 启动（无控制台窗口）。
 
+> **默认以管理员身份运行**：热键依赖 `WH_KEYBOARD_LL` 全局键盘钩子，而非提权进程
+> 在两种情况下收不到按键 —— 前台窗口属于管理员程序（UIPI 限制），或被安全软件
+> 拦截。所以 `run.pyw` 检测到自己不是管理员时会用 `ShellExecuteW("runas")`
+> 重新拉起自己。若你的 UAC 设置了"每次询问"，启动时会弹一次确认框。
+> 不需要提权时：配置里设 `"run_as_admin": false`，或临时设环境变量
+> `VTW_NO_ELEVATE=1`（此时热键在管理员窗口里会失效）。
+
 > 模型权重遵循上游 **FunASR Model License 1.1**；本项目代码为 MIT，两者的许可范围不同，详见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
 
 ### 手动安装
@@ -240,8 +247,23 @@ $env:PYTHONPATH = "$PWD\src"
 ## 排错
 
 **热键没反应**
-：可能被别的软件占用了。改 `config.json` 里的 `hotkey_dictate`，推荐
-`ctrl+alt+d`、`ctrl+shift+space`、`alt+\``。改完重启程序。
+：先看 `logs\vtw.log`，按顺序排查：
+
+1. 确认日志里有 **`管理员权限：是`**。不是的话说明程序没提权 —— 非提权进程收不到
+   发往管理员窗口的按键，也会被安全软件拦截钩子。用 `run.pyw` 启动（会自动提权），
+   或确认 `config.json` 里 `run_as_admin` 不是 `false`。
+   想单独确认钩子收不收得到按键（**用管理员终端跑**）：
+   `.\.venv\Scripts\python.exe scripts\diagnose_hotkey.py`
+2. 日志里有 `ModuleNotFoundError` 或「缺少运行依赖」，说明跑在了系统 Python 上。
+   `run.pyw` 现在会自动切到 `.venv`；仍缺包就
+   `.\.venv\Scripts\python.exe -m pip install -r requirements.txt`。
+3. 日志里有「注册热键」但按下无反应：可能被别的软件占用，或还有一个旧实例在跑
+   （日志会出现「检测到已有 vtw 实例正在运行（持有者 pid=…）」）。先退出所有实例
+   再启动；仍不行就改 `config.json` 里的 `hotkey_dictate`，推荐 `ctrl+alt+d`、
+   `ctrl+shift+space`、`alt+\``。
+4. 用的是**单个修饰键**（如 `ctrl`）：这类热键不能抑制（否则 Ctrl+C / Alt+Tab 全废），
+   改为「按住约 0.3 秒才触发」，快速点按不算。日志会打印
+   `注册热键 ctrl（… 匹配=0xA2/0xA3/0x11 抑制=False 按住0.3s生效）`。
 
 **用 `alt+某键` 时，某些程序会弹出菜单栏**
 ：因为 Alt 键本身被放行（只吞主键），个别程序会把"单独按下再松开 Alt"
@@ -346,7 +368,7 @@ Windows PowerShell 5.1 会把无 BOM 的 `.ps1` 按 ANSI(GBK) 解码，
 | 英文识别 RTF | 0.0335 | < 0.2 |
 | 空闲 CPU | **0 %** | < 0.5% |
 | 空闲内存（工作集） | **355 ~ 358 MB** | < 500 MB |
-| 单元测试 | **218 项全通过**（缺模型/无声卡时相关用例自动跳过） | — |
+| 单元测试 | **243 项全通过**（缺模型/无声卡时相关用例自动跳过） | — |
 | 会议界面端到端（`test_meeting_gui.py`） | 系统声音 / 麦克风 / 两者均通过：窗口创建、实时字幕、文字稿落盘 | — |
 | 文件转写端到端（`test_file_transcribe.py`） | WAV / 44.1kHz 立体声 / MP3 / M4A 均通过，RTF ≈ **0.030** | < 0.2 |
 | 设置界面尺寸 | 613 × 734，无控件被裁切 | — |
